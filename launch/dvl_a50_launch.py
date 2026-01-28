@@ -84,7 +84,7 @@ def generate_launch_description():
         ),
         launch_ros.actions.Node(
             package='dvl_a50',
-            executable='dvl_nav_interface.py',
+            executable='dvl_a50_nav',
             name='dvl_nav_interface',
             parameters=[LaunchConfiguration('params_file')],
             output='screen',

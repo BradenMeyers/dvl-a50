@@ -17,6 +17,9 @@
   <build_depend>sensor_msgs</build_depend>
   <build_depend>geometry_msgs</build_depend>
   <build_depend>dvl_msgs</build_depend>
+  <build_depend>tf2_ros</build_depend>
+  <build_depend>tf2_geometry_msgs</build_depend>
+  <build_depend>nav_msgs</build_depend>
   
   <build_depend>lifecycle_msgs</build_depend>
   <build_depend>rclcpp_lifecycle</build_depend>

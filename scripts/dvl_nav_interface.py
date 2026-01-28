@@ -111,6 +111,7 @@ class DVLNavInterface(Node):
 
         ned_dvl_pose_in_base = do_transform_pose(ned_dvl_pose_in_dvl, T_dvl_to_base)
        
+        # Tedious unpacking to TransformStamped for do_transform_pose
         ned_dvl_transform_in_base = TransformStamped()
         ned_dvl_transform_in_base.transform.translation.x = ned_dvl_pose_in_base.position.x
         ned_dvl_transform_in_base.transform.translation.y = ned_dvl_pose_in_base.position.y

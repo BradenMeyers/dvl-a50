@@ -25,6 +25,9 @@ find_package(dvl_msgs REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(lifecycle_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 
 
 set(node_plugins "")
@@ -58,6 +61,14 @@ ament_target_dependencies(${PROJECT_NAME}_sensor rclcpp
     "geometry_msgs" 
     "dvl_msgs")
 
+add_executable(${PROJECT_NAME}_nav src/dvl-nav-interface.cpp)
+ament_target_dependencies(${PROJECT_NAME}_nav rclcpp 
+    "geometry_msgs" 
+    "dvl_msgs"
+    "tf2_ros"
+    "tf2_geometry_msgs"
+    "nav_msgs")
+
 
 #Install C++ targets
 install(TARGETS
@@ -69,6 +80,7 @@ install(TARGETS
   
 install(TARGETS
   ${PROJECT_NAME}_sensor
+  ${PROJECT_NAME}_nav
   DESTINATION lib/${PROJECT_NAME}
 )
 
