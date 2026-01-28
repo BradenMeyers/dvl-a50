@@ -5,13 +5,25 @@
     position_frame_id: dvl_A50/position_link
 
 
-    # DVL Nav Interface Params
+/dvl_nav_interface:
     odom_frame_id: dvl_odom         # The parent Frame ID used for the Odometry msg
     child_frame_id: base_link       # If the child frame id is the same as position_frame_id TF should not be published
+    ned_odom_frame_id: dvl_odom_ned # The NED odom frame id
     orientation_variance: 0.15
     publish_tf: True
 
+/dvl_link_to_base_link:
+  ros__parameters:
+    child_frame_id: dvl_A50/position_link    
+    frame_id: base_link             
+    # Static TF Publisher Params
+    dvl_to_base_translation: [0.0, 0.0, 0.0] # x, y, z in meters
+    dvl_to_base_rotation: [1.0, 0.0, 0.0, 0.0] # x, y, z, w quaternion  (Z down to Z up)
 
+/body_zup_to_zdown:
+  ros__parameters:
+    child_frame_id: dvl_odom_ned    
+    frame_id: dvl_odom             
     # Static TF Publisher Params
     dvl_to_base_translation: [0.0, 0.0, 0.0] # x, y, z in meters
     dvl_to_base_rotation: [1.0, 0.0, 0.0, 0.0] # x, y, z, w quaternion  (Z down to Z up)

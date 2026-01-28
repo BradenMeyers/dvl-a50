@@ -85,13 +85,22 @@ def generate_launch_description():
         launch_ros.actions.Node(
             package='dvl_a50',
             executable='dvl_nav_interface.py',
+            name='dvl_nav_interface',
             parameters=[LaunchConfiguration('params_file')],
             output='screen',
         ),
         launch_ros.actions.Node(
             package='dvl_a50',
             executable='dvl_static_tf_pub.py',
-            parameters=[LaunchConfiguration('params_file')],  # Overrided values from the param file
+            name='dvl_link_to_base_link',
+            parameters=[LaunchConfiguration('params_file')], 
+            output='screen',
+        ),
+        launch_ros.actions.Node(
+            package='dvl_a50',
+            executable='dvl_static_tf_pub.py',
+            name='body_zup_to_zdown',
+            parameters=[LaunchConfiguration('params_file')], 
             output='screen',
         ),
         OpaqueFunction(function=launch_setup)

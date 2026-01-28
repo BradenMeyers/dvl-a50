@@ -3,12 +3,11 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-import numpy as np
-from scipy.spatial.transform import Rotation as R
 from tf2_ros import TransformBroadcaster, Buffer, TransformListener
+from tf2_geometry_msgs import do_transform_pose
+import math
 
-from geometry_msgs.msg import TransformStamped
-from geometry_msgs.msg import TwistWithCovarianceStamped
+from geometry_msgs.msg import TwistWithCovarianceStamped, Pose, TransformStamped, Quaternion
 from nav_msgs.msg import Odometry
 from dvl_msgs.msg import DVL, DVLDR
 from builtin_interfaces.msg import Time
@@ -20,12 +19,15 @@ class DVLNavInterface(Node):
         super().__init__('dvl_nav_interface')
         
         self.declare_parameter('odom_frame_id', 'dvl_odom')
-        self.odom_frame_id = self.get_parameter('odom_frame_id').value
+        self.declare_parameter('ned_odom_frame_id', 'dvl_odom_ned')
         self.declare_parameter('child_frame_id', 'base_link')
-        self.child_frame_id = self.get_parameter('child_frame_id').value
         self.declare_parameter('orientation_variance', 0.15)  # radians^2
-        self.orientation_var = self.get_parameter('orientation_variance').value
         self.declare_parameter('publish_tf', True)
+        
+        self.odom_frame_id = self.get_parameter('odom_frame_id').value
+        self.ned_odom_frame_id = self.get_parameter('ned_odom_frame_id').value
+        self.child_frame_id = self.get_parameter('child_frame_id').value
+        self.orientation_var = self.get_parameter('orientation_variance').value
         self.publish_tf = self.get_parameter('publish_tf').value
 
         self.tf_broadcaster = TransformBroadcaster(self)
@@ -76,22 +78,20 @@ class DVLNavInterface(Node):
         # Get transfrom from msg.header.frame_id to self.child_frame_id
         # CHECK: I dont think translation matters here since it starts from an arbitrary point
         try:
-            T_base_dvl = self.tf_buffer.lookup_transform(
+            T_dvl_to_base = self.tf_buffer.lookup_transform(
                 self.child_frame_id,
                 msg.header.frame_id,
+                msg.header.stamp
+            )
+            T_zup_zdown = self.tf_buffer.lookup_transform(
+                self.ned_odom_frame_id,
+                self.odom_frame_id,
                 msg.header.stamp
             )
         except Exception as e:
             self.get_logger().warn(f'TF lookup failed: {e}')
             return
         
-        R_base_dvl = R.from_quat([
-            T_base_dvl.transform.rotation.x,
-            T_base_dvl.transform.rotation.y,
-            T_base_dvl.transform.rotation.z,
-            T_base_dvl.transform.rotation.w,
-        ]).as_matrix()
-
 
         # DVLDR time is float64 seconds
         sec = int(msg.time)
@@ -99,27 +99,33 @@ class DVLNavInterface(Node):
         odom.header.stamp.sec = sec
         odom.header.stamp.nanosec = nanosec
 
-        # ---------- Position ----------
-        # Rotation from DVL frame to base_link frame
-        dvl_pos = np.array([[msg.position.x],
-                            [msg.position.y],
-                            [msg.position.z]])
-        enu_pos = R_base_dvl @ dvl_pos
+        # ------------ Pose --------------
+        # Pose calculation using tf2 do_transform_pose
+        q = self.quaternion_from_euler(msg.roll, msg.pitch, msg.yaw, degrees=True)
 
-        odom.pose.pose.position.x = enu_pos[0, 0]
-        odom.pose.pose.position.y = enu_pos[1, 0]
-        odom.pose.pose.position.z = enu_pos[2, 0]
+        ned_dvl_pose_in_dvl = Pose()
+        ned_dvl_pose_in_dvl.position.x = msg.position.x
+        ned_dvl_pose_in_dvl.position.y = msg.position.y
+        ned_dvl_pose_in_dvl.position.z = msg.position.z
+        ned_dvl_pose_in_dvl.orientation = q
 
-        # ---------- Orientation (Euler → quaternion via scipy) ----------
-        ROT = R.from_euler('xyz', [msg.roll, msg.pitch, msg.yaw], degrees=True).as_matrix()
-        R_Corrected = R_base_dvl @ ROT @ R_base_dvl.T
-        quat = R.from_matrix(R_Corrected).as_quat()
+        ned_dvl_pose_in_base = do_transform_pose(ned_dvl_pose_in_dvl, T_dvl_to_base)
+       
+        ned_dvl_transform_in_base = TransformStamped()
+        ned_dvl_transform_in_base.transform.translation.x = ned_dvl_pose_in_base.position.x
+        ned_dvl_transform_in_base.transform.translation.y = ned_dvl_pose_in_base.position.y
+        ned_dvl_transform_in_base.transform.translation.z = ned_dvl_pose_in_base.position.z
+        ned_dvl_transform_in_base.transform.rotation = ned_dvl_pose_in_base.orientation
 
+        pose_zup_zdown = Pose()
+        pose_zup_zdown.position.x = T_zup_zdown.transform.translation.x
+        pose_zup_zdown.position.y = T_zup_zdown.transform.translation.y
+        pose_zup_zdown.position.z = T_zup_zdown.transform.translation.z
+        pose_zup_zdown.orientation = T_zup_zdown.transform.rotation
 
-        odom.pose.pose.orientation.x = quat[0]
-        odom.pose.pose.orientation.y = quat[1]
-        odom.pose.pose.orientation.z = quat[2]
-        odom.pose.pose.orientation.w = quat[3]
+        dvl_pose_in_base = do_transform_pose(pose_zup_zdown, ned_dvl_transform_in_base)
+
+        odom.pose.pose = dvl_pose_in_base
 
         # ---------- Pose covariance ----------
         # Position variance from pos_std (assumed isotropic)
@@ -190,6 +196,33 @@ class DVLNavInterface(Node):
         t.sec = us // 1_000_000
         t.nanosec = (us % 1_000_000) * 1_000
         return t
+    
+    def quaternion_from_euler(self, roll, pitch, yaw, degrees=False):
+        """
+        Convert Euler angles to a Quaternion message.
+
+        :param roll: Roll angle in radians.
+        :param pitch: Pitch angle in radians.
+        :param yaw: Yaw angle in radians.
+        :return: Populated geometry_msgs/Quaternion message.
+        """
+        if degrees:
+            roll = math.radians(roll)
+            pitch = math.radians(pitch)
+            yaw = math.radians(yaw)
+        cy = math.cos(yaw * 0.5)
+        sy = math.sin(yaw * 0.5)
+        cp = math.cos(pitch * 0.5)
+        sp = math.sin(pitch * 0.5)
+        cr = math.cos(roll * 0.5)
+        sr = math.sin(roll * 0.5)
+
+        q = Quaternion()
+        q.w = cr * cp * cy + sr * sp * sy
+        q.x = sr * cp * cy - cr * sp * sy
+        q.y = cr * sp * cy + sr * cp * sy
+        q.z = cr * cp * sy - sr * sp * cy
+        return q
 
 
 def main(args=None):
