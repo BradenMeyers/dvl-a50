@@ -77,6 +77,7 @@ install(TARGETS
 install(PROGRAMS
   scripts/dvl_a50.py  
   scripts/dvl_nav_interface.py
+  scripts/dvl_static_tf_pub.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

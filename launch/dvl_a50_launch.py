@@ -27,18 +27,17 @@ from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from ament_index_python.packages import get_package_share_directory
 
+# Package share directory
+pkg_share_dir = get_package_share_directory('dvl_a50')
+
+# Default parameter file
+default_params_file = os.path.join(
+    pkg_share_dir,
+    'config',
+    'dvl_a50_default.yaml'
+)
 
 def launch_setup(context, *args, **kwargs):
-
-    # Package share directory
-    pkg_share_dir = get_package_share_directory('dvl_a50')
-
-    # Default parameter file
-    default_params_file = os.path.join(
-        pkg_share_dir,
-        'config',
-        'dvl_a50_default.yaml'
-    )
 
     # Resolve launch arguments
     params_file = LaunchConfiguration('params_file').perform(context)
@@ -74,7 +73,7 @@ def generate_launch_description():
 
         DeclareLaunchArgument(
             'params_file',
-            default_value='',
+            default_value=default_params_file,
             description='Optional YAML parameter file override'
         ),
 
@@ -87,6 +86,12 @@ def generate_launch_description():
             package='dvl_a50',
             executable='dvl_nav_interface.py',
             parameters=[LaunchConfiguration('params_file')],
+            output='screen',
+        ),
+        launch_ros.actions.Node(
+            package='dvl_a50',
+            executable='dvl_static_tf_pub.py',
+            parameters=[LaunchConfiguration('params_file')],  # Overrided values from the param file
             output='screen',
         ),
         OpaqueFunction(function=launch_setup)

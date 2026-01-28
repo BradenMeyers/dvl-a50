@@ -10,3 +10,8 @@
     child_frame_id: base_link       # If the child frame id is the same as position_frame_id TF should not be published
     orientation_variance: 0.15
     publish_tf: True
+
+
+    # Static TF Publisher Params
+    dvl_to_base_translation: [0.0, 0.0, 0.0] # x, y, z in meters
+    dvl_to_base_rotation: [1.0, 0.0, 0.0, 0.0] # x, y, z, w quaternion  (Z down to Z up)
