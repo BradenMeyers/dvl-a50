@@ -1,0 +1,12 @@
+/**:
+  ros__parameters:
+    dvl_ip_address: 192.168.194.95
+    velocity_frame_id: dvl_A50/velocity_link
+    position_frame_id: dvl_A50/position_link
+
+
+    # DVL Nav Interface Params
+    odom_frame_id: dvl_odom         # The parent Frame ID used for the Odometry msg
+    child_frame_id: base_link
+    orientation_variance: 0.15
+    publish_tf: True
