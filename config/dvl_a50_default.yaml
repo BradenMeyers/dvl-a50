@@ -7,6 +7,6 @@
 
     # DVL Nav Interface Params
     odom_frame_id: dvl_odom         # The parent Frame ID used for the Odometry msg
-    child_frame_id: base_link
+    child_frame_id: base_link       # If the child frame id is the same as position_frame_id TF should not be published
     orientation_variance: 0.15
     publish_tf: True

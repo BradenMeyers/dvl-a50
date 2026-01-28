@@ -83,5 +83,11 @@ def generate_launch_description():
             default_value='',
             description='Optional override for the DVL IP address'
         ),
+        launch_ros.actions.Node(
+            package='dvl_a50',
+            executable='dvl_nav_interface.py',
+            parameters=[LaunchConfiguration('params_file')],
+            output='screen',
+        ),
         OpaqueFunction(function=launch_setup)
     ])

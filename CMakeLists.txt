@@ -75,7 +75,8 @@ install(TARGETS
 #Install Python scripts
 #file(GLOB SCRIPT_FILES scripts/*)
 install(PROGRAMS
-  scripts/dvl_a50.py
+  scripts/dvl_a50.py  
+  scripts/dvl_nav_interface.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
