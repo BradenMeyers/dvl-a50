@@ -42,6 +42,7 @@ def launch_setup(context, *args, **kwargs):
     # Resolve launch arguments
     params_file = LaunchConfiguration('params_file').perform(context)
     ip_override = LaunchConfiguration('ip_address').perform(context)
+    namespace = LaunchConfiguration('namespace').perform(context)
 
     # Select parameter file
     if params_file == '':
@@ -60,6 +61,7 @@ def launch_setup(context, *args, **kwargs):
         package='dvl_a50',
         executable='dvl_a50_sensor',
         output='screen',
+        namespace=namespace,
         parameters=parameters
     )
 
@@ -76,7 +78,11 @@ def generate_launch_description():
             default_value=default_params_file,
             description='Optional YAML parameter file override'
         ),
-
+        DeclareLaunchArgument(
+            'namespace',
+            default_value='',
+            description='Optional namespace for the DVL nodes'
+        ),
         DeclareLaunchArgument(
             'ip_address',
             default_value='',
@@ -87,6 +93,7 @@ def generate_launch_description():
             executable='dvl_a50_nav',
             name='dvl_nav_interface',
             parameters=[LaunchConfiguration('params_file')],
+            namespace=LaunchConfiguration('namespace'),
             output='screen',
         ),
         launch_ros.actions.Node(
@@ -94,6 +101,7 @@ def generate_launch_description():
             executable='dvl_static_tf_pub.py',
             name='dvl_link_to_base_link',
             parameters=[LaunchConfiguration('params_file')], 
+            namespace=LaunchConfiguration('namespace'),
             output='screen',
         ),
         launch_ros.actions.Node(
@@ -101,6 +109,7 @@ def generate_launch_description():
             executable='dvl_static_tf_pub.py',
             name='body_zup_to_zdown',
             parameters=[LaunchConfiguration('params_file')], 
+            namespace=LaunchConfiguration('namespace'),
             output='screen',
         ),
         OpaqueFunction(function=launch_setup)
