@@ -110,7 +110,7 @@ The `dvl_nav_interface` node performs the following tasks:
 - `/dvl/position` ([dvl_msgs/DVLDR](https://github.com/paagutie/dvl_msgs)) - Dead-reckoned position from the DVL's internal navigation
 
 #### Publications
-- `/dvl/twist` ([geometry_msgs/TwistWithCovarianceStamped](http://docs.ros.org/en/api/geometry_msgs/html/msg/TwistWithCovarianceStamped.html)) - Linear velocity with 3×3 covariance matrix
+- `/dvl/twist` ([geometry_msgs/TwistWithCovarianceStamped](http://docs.ros.org/en/api/geometry_msgs/html/msg/TwistWithCovarianceStamped.html)) - Linear velocity with 6×6 covariance matrix (only linear velocity components populated from DVL's 3×3 covariance)
 - `/dvl/odom` ([nav_msgs/Odometry](http://docs.ros.org/en/api/nav_msgs/html/msg/Odometry.html)) - Full odometry message with pose and covariance
 - TF transform (optional): Broadcasts `odom_frame_id` → `child_frame_id` transform
 
@@ -124,7 +124,7 @@ Configure the DVL nav interface through the parameter file (see `config/dvl_a50_
 | `ned_odom_frame_id` | string | `dvl_odom_ned` | NED odometry frame ID (Z-down convention) |
 | `child_frame_id` | string | `base_link` | Child frame ID (typically robot base_link) |
 | `orientation_variance` | double | `0.15` | Orientation variance for covariance matrix (radians²) |
-| `publish_tf` | bool | `True` | Whether to publish TF transforms |
+| `publish_tf` | bool | `true` | Whether to publish TF transforms |
 
 ### Frame Transformations
 
@@ -133,7 +133,7 @@ The nav interface requires two static transforms to be published (automatically 
 1. **DVL to Base Link**: Transform from `dvl_A50/position_link` to `base_link`
    - Accounts for the physical mounting position and orientation of the DVL sensor
    
-2. **Z-Up to Z-Down**: Transform between `dvl_odom` (Z-up) and `dvl_odom_ned` (Z-down)
+2. **Z-Up to Z-Down Frame Convention**: Transform between `dvl_odom` (Z-up) and `dvl_odom_ned` (Z-down)
    - Converts between ROS standard (Z-up) and marine/DVL convention (Z-down/NED)
 
 ### Usage
@@ -152,8 +152,8 @@ $ ros2 launch dvl_a50 dvl_a50_launch.py ip_address:='192.168.194.95'
 
 This launch file will start:
 - DVL A50 sensor driver (`dvl_a50_sensor`)
-- DVL navigation interface (`dvl_a50_nav` or `dvl_nav_interface.py`)
-- Static TF publishers for required frame transformations
+- DVL navigation interface (C++ version: `dvl_a50_nav`)
+- Static TF publishers for required frame transformations (`dvl_link_to_base_link` and `body_zup_to_zdown`)
 
 #### Running the Nav Interface Standalone
 
@@ -201,7 +201,9 @@ ekf_filter_node:
 
 **TF Lookup Errors:**
 If you see warnings about TF lookups failing:
-1. Verify that `dvl_static_tf_pub.py` nodes are running (launched automatically with `dvl_a50_launch.py`)
+1. Verify that the static TF publisher nodes are running (launched automatically with `dvl_a50_launch.py`):
+   - `dvl_link_to_base_link` - publishes transform from `base_link` to `dvl_A50/position_link`
+   - `body_zup_to_zdown` - publishes transform from `dvl_odom` to `dvl_odom_ned`
 2. Check that frame IDs in your config match those in the TF tree: `ros2 run tf2_tools view_frames`
 3. Ensure timestamps are synchronized
 
