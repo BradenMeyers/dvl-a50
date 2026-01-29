@@ -44,10 +44,6 @@ def launch_setup(context, *args, **kwargs):
     ip_override = LaunchConfiguration('ip_address').perform(context)
     namespace = LaunchConfiguration('namespace').perform(context)
 
-    # Select parameter file
-    if params_file == '':
-        params_file = default_params_file
-
     # Parameter list (order matters — later overrides earlier)
     parameters = [params_file]
 
