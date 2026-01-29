@@ -88,7 +88,130 @@ $ ros2 lifecycle set /dvl_a50_node cleanup
 $ ros2 lifecycle set /dvl_a50_node shutdown
 ```
 
-## ROS2 Topics 
+## DVL Navigation Interface
+
+The DVL Navigation Interface is a bridge node that converts DVL sensor data into standard ROS2 navigation messages. It processes both velocity and dead-reckoning position data from the DVL and publishes them in formats compatible with navigation stacks like `robot_localization` and `nav2`.
+
+### What It Does
+
+The `dvl_nav_interface` node performs the following tasks:
+
+1. **Velocity Conversion**: Subscribes to raw DVL velocity data (`dvl/data`) and converts it to `TwistWithCovarianceStamped` messages with proper covariance matrices for sensor fusion
+2. **Odometry Conversion**: Subscribes to DVL dead-reckoned position data (`dvl/position`) and converts it to standard `Odometry` messages
+3. **Frame Transformations**: Handles coordinate frame transformations between:
+   - DVL sensor frame and robot base_link
+   - Z-down (DVL/NED convention) and Z-up (ROS convention) coordinate systems
+4. **TF Broadcasting**: Optionally publishes the odometry transform to the TF tree
+
+### Topics
+
+#### Subscriptions
+- `/dvl/data` ([dvl_msgs/DVL](https://github.com/paagutie/dvl_msgs)) - Raw DVL velocity and status data from the sensor
+- `/dvl/position` ([dvl_msgs/DVLDR](https://github.com/paagutie/dvl_msgs)) - Dead-reckoned position from the DVL's internal navigation
+
+#### Publications
+- `/dvl/twist` ([geometry_msgs/TwistWithCovarianceStamped](http://docs.ros.org/en/api/geometry_msgs/html/msg/TwistWithCovarianceStamped.html)) - Linear velocity with 3×3 covariance matrix
+- `/dvl/odom` ([nav_msgs/Odometry](http://docs.ros.org/en/api/nav_msgs/html/msg/Odometry.html)) - Full odometry message with pose and covariance
+- TF transform (optional): Broadcasts `odom_frame_id` → `child_frame_id` transform
+
+### Configuration Parameters
+
+Configure the DVL nav interface through the parameter file (see `config/dvl_a50_default.yaml`):
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `odom_frame_id` | string | `dvl_odom` | Parent frame ID for odometry messages (Z-up convention) |
+| `ned_odom_frame_id` | string | `dvl_odom_ned` | NED odometry frame ID (Z-down convention) |
+| `child_frame_id` | string | `base_link` | Child frame ID (typically robot base_link) |
+| `orientation_variance` | double | `0.15` | Orientation variance for covariance matrix (radians²) |
+| `publish_tf` | bool | `True` | Whether to publish TF transforms |
+
+### Frame Transformations
+
+The nav interface requires two static transforms to be published (automatically handled by `dvl_a50_launch.py`):
+
+1. **DVL to Base Link**: Transform from `dvl_A50/position_link` to `base_link`
+   - Accounts for the physical mounting position and orientation of the DVL sensor
+   
+2. **Z-Up to Z-Down**: Transform between `dvl_odom` (Z-up) and `dvl_odom_ned` (Z-down)
+   - Converts between ROS standard (Z-up) and marine/DVL convention (Z-down/NED)
+
+### Usage
+
+The DVL nav interface is available in both **Python** and **C++** implementations with identical functionality.
+
+#### Running with the Full Launch File (Recommended)
+
+The easiest way to use the DVL nav interface is with the complete launch file that starts the sensor driver, nav interface, and required TF publishers:
+
+```bash
+$ cd ~/ros2_ws
+$ source install/setup.bash
+$ ros2 launch dvl_a50 dvl_a50_launch.py ip_address:='192.168.194.95'
+```
+
+This launch file will start:
+- DVL A50 sensor driver (`dvl_a50_sensor`)
+- DVL navigation interface (`dvl_a50_nav` or `dvl_nav_interface.py`)
+- Static TF publishers for required frame transformations
+
+#### Running the Nav Interface Standalone
+
+##### Python Version
+```bash
+$ ros2 run dvl_a50 dvl_nav_interface.py --ros-args -p odom_frame_id:='dvl_odom'
+```
+
+##### C++ Version
+```bash
+$ ros2 run dvl_a50 dvl_a50_nav --ros-args -p odom_frame_id:='dvl_odom'
+```
+
+#### Custom Configuration File
+
+To use a custom parameter configuration:
+
+```bash
+$ ros2 launch dvl_a50 dvl_a50_launch.py params_file:=/path/to/custom.yaml ip_address:='192.168.194.95'
+```
+
+### Integration with Navigation Stack
+
+The DVL nav interface outputs are designed to integrate with ROS2 navigation packages:
+
+**For robot_localization (EKF/UKF):**
+```yaml
+# Example robot_localization configuration
+ekf_filter_node:
+  ros__parameters:
+    odom0: /dvl/odom
+    odom0_config: [true,  true,  true,    # x, y, z position
+                   false, false, false,   # roll, pitch, yaw
+                   true,  true,  true,    # x_vel, y_vel, z_vel
+                   false, false, false,   # roll_vel, pitch_vel, yaw_vel
+                   false, false, false]   # x_accel, y_accel, z_accel
+```
+
+**For nav2 or other consumers:**
+- Subscribe to `/dvl/twist` for velocity updates
+- Subscribe to `/dvl/odom` for full odometry
+- Ensure required TF transforms are available
+
+### Troubleshooting
+
+**TF Lookup Errors:**
+If you see warnings about TF lookups failing:
+1. Verify that `dvl_static_tf_pub.py` nodes are running (launched automatically with `dvl_a50_launch.py`)
+2. Check that frame IDs in your config match those in the TF tree: `ros2 run tf2_tools view_frames`
+3. Ensure timestamps are synchronized
+
+**Invalid Velocity Warnings:**
+The node will log warnings if `velocity_valid` is false in DVL data - this typically means:
+- DVL has insufficient bottom lock
+- Sensor is out of range
+- Sensor initialization still in progress
+
+## ROS2 Topics (DVL Sensor Driver)
 - `/dvl/data`
 - `/dvl/position`
 - `dvl/config/status`
