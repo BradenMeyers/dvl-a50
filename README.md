@@ -132,9 +132,11 @@ The nav interface requires two static transforms to be published (automatically 
 
 1. **DVL to Base Link**: Transform from `dvl_A50/position_link` to `base_link`
    - Accounts for the physical mounting position and orientation of the DVL sensor
+   - Follows [REP-105](https://www.ros.org/reps/rep-0105.html) coordinate frame conventions for mobile platforms
    
 2. **Z-Up to Z-Down Frame Convention**: Transform between `dvl_odom` (Z-up) and `dvl_odom_ned` (Z-down)
-   - Converts between ROS standard (Z-up) and marine/DVL convention (Z-down/NED)
+   - Converts between ROS standard (Z-up, ENU) and marine/DVL convention (Z-down, NED)
+   - Adheres to [REP-103](https://www.ros.org/reps/rep-0103.html) axis orientation standards
 
 ### Usage
 
@@ -177,25 +179,14 @@ $ ros2 launch dvl_a50 dvl_a50_launch.py params_file:=/path/to/custom.yaml ip_add
 
 ### Integration with Navigation Stack
 
-The DVL nav interface outputs are designed to integrate with ROS2 navigation packages:
+The DVL nav interface outputs are designed to integrate with ROS2 navigation packages. The published topics follow standard message types and conventions per [REP-103](https://www.ros.org/reps/rep-0103.html) and [REP-105](https://www.ros.org/reps/rep-0105.html), making them compatible with sensor fusion packages like `robot_localization` and navigation frameworks like `nav2`.
 
-**For robot_localization (EKF/UKF):**
-```yaml
-# Example robot_localization configuration
-ekf_filter_node:
-  ros__parameters:
-    odom0: /dvl/odom
-    odom0_config: [true,  true,  true,    # x, y, z position
-                   false, false, false,   # roll, pitch, yaw
-                   true,  true,  true,    # x_vel, y_vel, z_vel
-                   false, false, false,   # roll_vel, pitch_vel, yaw_vel
-                   false, false, false]   # x_accel, y_accel, z_accel
-```
-
-**For nav2 or other consumers:**
-- Subscribe to `/dvl/twist` for velocity updates
-- Subscribe to `/dvl/odom` for full odometry
-- Ensure required TF transforms are available
+**Integration Notes:**
+- The `/dvl/odom` topic provides standard `nav_msgs/Odometry` messages suitable for fusion with other odometry sources
+- The `/dvl/twist` topic provides velocity information with covariance for sensor fusion algorithms
+- TF transforms follow REP-105 conventions with proper `odom` → `base_link` relationships
+- Compatible with the `robot_localization` package for multi-sensor fusion (EKF/UKF filters)
+- Can be integrated with `nav2` and other navigation stacks that consume standard odometry messages
 
 ### Troubleshooting
 
