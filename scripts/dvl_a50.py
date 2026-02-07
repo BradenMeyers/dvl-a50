@@ -44,7 +44,11 @@ class DVL_A50(Node):
         self.declare_parameter('port', 16171)
         self.dvl_port = self.get_parameter('port').get_parameter_value().integer_value
 
-        self.get_logger().info(f"Device IP: {self.device_ip}, ROS IP: {self.client_address}, Port: {self.dvl_port}")
+        # Use ENU (Z-up) instead of NED (Z-down) frame
+        self.declare_parameter('use_enu', False)
+        self.use_enu = self.get_parameter('use_enu').get_parameter_value().bool_value
+
+        self.get_logger().info(f"Device IP: {self.device_ip}, ROS IP: {self.client_address}, Port: {self.dvl_port}, Use ENU: {self.use_enu}")
 
         self.dvl_publisher_ = self.create_publisher(DVL, '/dvl/data', 10)
         self.dvl_publisher_pos = self.create_publisher(DVLDR, '/dvl/position', 10)
@@ -157,9 +161,23 @@ class DVL_A50(Node):
 
         if 'time' in data:
             theDVL.time = float(data["time"])
-            theDVL.velocity.x = float(data["vx"])
-            theDVL.velocity.y = float(data["vy"])
-            theDVL.velocity.z = float(data["vz"])
+            
+            # Get velocity from DVL (in NED/Z-down frame)
+            vx_ned = float(data["vx"])
+            vy_ned = float(data["vy"])
+            vz_ned = float(data["vz"])
+            
+            # Transform to ENU (Z-up) if use_enu is enabled
+            # NED to ENU: X_enu = Y_ned, Y_enu = X_ned, Z_enu = -Z_ned
+            if self.use_enu:
+                theDVL.velocity.x = vy_ned
+                theDVL.velocity.y = vx_ned
+                theDVL.velocity.z = -vz_ned
+            else:
+                theDVL.velocity.x = vx_ned
+                theDVL.velocity.y = vy_ned
+                theDVL.velocity.z = vz_ned
+                
             theDVL.fom = float(data["fom"])
             self.current_altitude = float(data["altitude"])
             theDVL.velocity_valid = data["velocity_valid"]
