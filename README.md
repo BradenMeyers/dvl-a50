@@ -64,12 +64,20 @@ The DVL A50 sensor driver can be configured through the parameter file (see `con
 
 By default (`use_enu: false`), the DVL publishes velocity data in the NED (North-East-Down) coordinate frame, which is the native DVL convention with Z-axis pointing downward. 
 
-When `use_enu: true`, the driver automatically transforms velocity data to the ENU (East-North-Up) coordinate frame with Z-axis pointing upward, which is the standard ROS convention per [REP-103](https://www.ros.org/reps/rep-0103.html). The transformation applied is:
-- X_enu = Y_ned
-- Y_enu = X_ned  
-- Z_enu = -Z_ned
+When `use_enu: true`, the driver automatically transforms velocity data to the ENU (East-North-Up) coordinate frame with Z-axis pointing upward, which is the standard ROS convention per [REP-103](https://www.ros.org/reps/rep-0103.html). 
 
-The covariance matrix is also transformed accordingly.
+**Mathematical Transformation Applied:**
+The DVL's native output uses body-fixed axes where:
+- X-axis (forward) corresponds to North in NED
+- Y-axis (right) corresponds to East in NED  
+- Z-axis (down) corresponds to Down in NED
+
+The `use_enu` transformation remaps these body-fixed axes to:
+- X_enu = Y_ned (body right → X forward)
+- Y_enu = X_ned (body forward → Y left)
+- Z_enu = -Z_ned (body down → Z up)
+
+The covariance matrix is also transformed accordingly to maintain proper uncertainty representation.
 
 **Note:** Setting `use_enu: false` (default) maintains backward compatibility and avoids confusion for users familiar with the DVL's native NED frame. The DVL Navigation Interface can still handle the Z-up/Z-down conversion through TF transforms if needed.
 

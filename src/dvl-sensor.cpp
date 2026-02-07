@@ -204,24 +204,32 @@ void DVL_A50::publish_vel_trans_report()
         }
 
         // Transform covariance matrix if use_enu is enabled
-        // The covariance matrix is 3x3 in row-major order
-        // NED to ENU: swap rows/cols 0 and 1, negate row/col 2
+        // The covariance matrix is 3x3 in row-major order: [C00, C01, C02, C10, C11, C12, C20, C21, C22]
+        // Transformation: C_enu = R * C_ned * R^T
+        // Where R = [[0, 1, 0], [1, 0, 0], [0, 0, -1]] for NED to ENU
         if (use_enu && twistCovariance.size() == 9) {
             std::vector<double> transformedCovariance(9);
-            // C_enu = R * C_ned * R^T where R is the rotation matrix
-            // For the swap X<->Y and negate Z transformation:
-            // Row 0 (X_enu): from row 1 (Y_ned)
-            transformedCovariance[0] = twistCovariance[4];  // Y,Y
-            transformedCovariance[1] = twistCovariance[3];  // Y,X
-            transformedCovariance[2] = -twistCovariance[5]; // Y,Z (negated)
-            // Row 1 (Y_enu): from row 0 (X_ned)
-            transformedCovariance[3] = twistCovariance[1];  // X,Y
-            transformedCovariance[4] = twistCovariance[0];  // X,X
-            transformedCovariance[5] = -twistCovariance[2]; // X,Z (negated)
-            // Row 2 (Z_enu): from row 2 (Z_ned) negated
-            transformedCovariance[6] = -twistCovariance[7]; // Z,Y (negated)
-            transformedCovariance[7] = -twistCovariance[6]; // Z,X (negated)
-            transformedCovariance[8] = twistCovariance[8];  // Z,Z (stays same)
+            // Mapping from NED indices to ENU:
+            // ENU: [0=Y_ned, 1=X_ned, 2=-Z_ned]
+            // Permutation: [1, 0, 2] with sign flip on index 2
+            
+            // For each element (i,j) in ENU covariance:
+            // C_enu[i][j] = R[i][:] * C_ned * R[j][:]^T
+            // Since R permutes and flips: 
+            // - perm[0]=1 (Y), perm[1]=0 (X), perm[2]=2 (Z)
+            // - sign[0]=+1, sign[1]=+1, sign[2]=-1
+            
+            int perm[3] = {1, 0, 2};  // ENU axis i comes from NED axis perm[i]
+            int sign[3] = {1, 1, -1}; // sign change for each axis
+            
+            for (int i = 0; i < 3; ++i) {
+                for (int j = 0; j < 3; ++j) {
+                    // Map ENU(i,j) from NED(perm[i], perm[j]) with sign adjustments
+                    int ned_i = perm[i];
+                    int ned_j = perm[j];
+                    transformedCovariance[i*3 + j] = twistCovariance[ned_i*3 + ned_j] * sign[i] * sign[j];
+                }
+            }
             twistCovariance = transformedCovariance;
         }
     }
