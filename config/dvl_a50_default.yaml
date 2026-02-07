@@ -3,6 +3,7 @@
     dvl_ip_address: 192.168.194.95
     velocity_frame_id: dvl_A50/velocity_link
     position_frame_id: dvl_A50/position_link
+    use_enu: false  # Use ENU (Z-up) frame instead of NED (Z-down) frame for velocity
 
 
 /dvl_nav_interface:

@@ -47,6 +47,40 @@ or
 $ ros2 launch dvl_a50 dvl_a50.launch.py ip_address:='192.168.194.95'
 ```
 
+## DVL Sensor Configuration
+
+The DVL A50 sensor driver can be configured through the parameter file (see `config/dvl_a50_default.yaml`) or via command line arguments.
+
+### DVL Sensor Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `dvl_ip_address` | string | `192.168.194.95` | IP address of the DVL sensor |
+| `velocity_frame_id` | string | `dvl_A50/velocity_link` | Frame ID for velocity messages |
+| `position_frame_id` | string | `dvl_A50/position_link` | Frame ID for position/dead-reckoning messages |
+| `use_enu` | bool | `false` | Use ENU (Z-up) coordinate frame instead of NED (Z-down) for velocity data |
+
+### Coordinate Frame Convention
+
+By default (`use_enu: false`), the DVL publishes velocity data in the NED (North-East-Down) coordinate frame, which is the native DVL convention with Z-axis pointing downward. 
+
+When `use_enu: true`, the driver automatically transforms velocity data to the ENU (East-North-Up) coordinate frame with Z-axis pointing upward, which is the standard ROS convention per [REP-103](https://www.ros.org/reps/rep-0103.html). 
+
+**Mathematical Transformation Applied:**
+The DVL's native output uses body-fixed axes where:
+- X-axis (forward) corresponds to North in NED
+- Y-axis (right) corresponds to East in NED  
+- Z-axis (down) corresponds to Down in NED
+
+The `use_enu` transformation remaps these body-fixed axes to:
+- X_enu = Y_ned (body right → X forward)
+- Y_enu = X_ned (body forward → Y left)
+- Z_enu = -Z_ned (body down → Z up)
+
+The covariance matrix is also transformed accordingly to maintain proper uncertainty representation.
+
+**Note:** Setting `use_enu: false` (default) maintains backward compatibility and avoids confusion for users familiar with the DVL's native NED frame. The DVL Navigation Interface can still handle the Z-up/Z-down conversion through TF transforms if needed.
+
 
 ## DVL Navigation Interface
 
@@ -81,7 +115,7 @@ The DVL nav interface outputs are designed to integrate with ROS2 navigation pac
 - `/dvl/position` 
 
 #### Publications
-- `/dvl/twist` ([geometry_msgs/TwistWithCovarianceStamped](http://docs.ros.org/en/api/geometry_msgs/html/msg/TwistWithCovarianceStamped.html)) - Linear velocity (in DVL sensor frame - z down) with 6×6 covariance matrix (only linear velocity components populated from DVL's 3×3 covariance)
+- `/dvl/twist` ([geometry_msgs/TwistWithCovarianceStamped](http://docs.ros.org/en/api/geometry_msgs/html/msg/TwistWithCovarianceStamped.html)) - Linear velocity in the configured coordinate frame (Z-down by default, or Z-up if `use_enu: true`) with 6×6 covariance matrix (only linear velocity components populated from DVL's 3×3 covariance)
 - `/dvl/odom` ([nav_msgs/Odometry](http://docs.ros.org/en/api/nav_msgs/html/msg/Odometry.html)) - Full odometry message with pose and covariance (only pose information from odom frame to base link frame)
 - TF transform (optional): Broadcasts `odom_frame_id` → `child_frame_id` transform
 

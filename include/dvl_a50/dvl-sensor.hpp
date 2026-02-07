@@ -60,6 +60,7 @@ private:
     std::string ip_address;
     std::string velocity_frame_id;
     std::string position_frame_id;
+    bool use_enu;
     TCPSocket *tcpSocket;
     json json_data;
 
