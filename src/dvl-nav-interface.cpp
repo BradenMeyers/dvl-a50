@@ -55,7 +55,8 @@ void DVLNavInterface::position_callback(const dvl_msgs::msg::DVLDR::SharedPtr ms
     nav_msgs::msg::Odometry odom;
     odom.header.frame_id = odom_frame_id_;
     odom.child_frame_id = child_frame_id_;
-    odom.header.stamp = msg->header.stamp;
+    odom.header.stamp.sec = int(msg->time);
+    odom.header.stamp.nanosec = (msg->time - odom.header.stamp.sec) * 1e9;
 
     geometry_msgs::msg::TransformStamped T_dvl_to_base, T_zup_zdown;
     try {
@@ -125,7 +126,8 @@ void DVLNavInterface::dvl_callback(const dvl_msgs::msg::DVL::SharedPtr msg)
         return;
     }
     geometry_msgs::msg::TwistWithCovarianceStamped twist_msg;
-    twist_msg.header.stamp = msg->header.stamp;
+    twist_msg.header.stamp.sec = int(msg->time_of_validity * 1e-6); //usec to sec
+    twist_msg.header.stamp.nanosec = ((msg->time_of_validity * 1e-6) - twist_msg.header.stamp.sec) * 1e9;
     twist_msg.header.frame_id = msg->header.frame_id;
     twist_msg.twist.twist.linear.x = msg->velocity.x;
     twist_msg.twist.twist.linear.y = msg->velocity.y;
