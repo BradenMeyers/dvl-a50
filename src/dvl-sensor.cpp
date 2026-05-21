@@ -31,11 +31,11 @@ Node("dvl_a50_node")
     dvl_sub_config_command = this->create_subscription<dvl_msgs::msg::ConfigCommand>("dvl/config/command", qos, std::bind(&DVL_A50::command_subscriber, this, _1));
 
     this->declare_parameter<std::string>("dvl_ip_address", "192.168.194.95");
-    this->declare_parameter<std::string>("velocity_frame_id", "dvl_A50/velocity_link");
-    this->declare_parameter<std::string>("position_frame_id", "dvl_A50/position_link");
+    this->declare_parameter<std::string>("dvl_frame_id", "dvl_link");
+    this->declare_parameter<std::string>("odom_frame_id", "dvl_odom_ned");
     
-    velocity_frame_id = this->get_parameter("velocity_frame_id").as_string();
-    position_frame_id = this->get_parameter("position_frame_id").as_string();
+    dvl_frame_id = this->get_parameter("dvl_frame_id").as_string();
+    odom_frame_id = this->get_parameter("odom_frame_id").as_string();
     ip_address = this->get_parameter("dvl_ip_address").as_string();
     RCLCPP_INFO(get_logger(), "IP_ADDRESS: '%s'", ip_address.c_str());
 
@@ -153,7 +153,7 @@ void DVL_A50::publish_vel_trans_report()
     dvl_msgs::msg::DVL dvl;
 
     dvl.header.stamp = Node::now();
-    dvl.header.frame_id = velocity_frame_id;
+    dvl.header.frame_id = dvl_frame_id;
 		
     dvl.time = double(json_data["time"]);
     dvl.time_of_validity = json_data["time_of_validity"].get<int64_t>();
@@ -230,7 +230,8 @@ void DVL_A50::publish_dead_reckoning_report()
     dvl_msgs::msg::DVLDR DVLDeadReckoning;
     //std::cout << std::setw(4) << json_data << std::endl;
     DVLDeadReckoning.header.stamp = Node::now();
-    DVLDeadReckoning.header.frame_id = position_frame_id;
+    DVLDeadReckoning.header.frame_id = odom_frame_id;
+    DVLDeadReckoning.child_frame_id = dvl_frame_id;
     DVLDeadReckoning.time = double(json_data["ts"]);
     DVLDeadReckoning.position.x = double(json_data["x"]);
     DVLDeadReckoning.position.y = double(json_data["y"]);

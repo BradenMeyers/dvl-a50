@@ -66,6 +66,8 @@ def launch_setup(context, *args, **kwargs):
 
 
 def generate_launch_description():
+    namespace = LaunchConfiguration('namespace')
+
 
     return launch.LaunchDescription([
 
@@ -89,23 +91,42 @@ def generate_launch_description():
             executable='dvl_a50_nav',
             name='dvl_nav_interface',
             parameters=[LaunchConfiguration('params_file')],
-            namespace=LaunchConfiguration('namespace'),
+            namespace=namespace,
             output='screen',
         ),
         launch_ros.actions.Node(
-            package='dvl_a50',
-            executable='dvl_static_tf_pub.py',
+            package='tf2_ros',
+            executable='static_transform_publisher.py',
             name='dvl_link_to_base_link',
-            parameters=[LaunchConfiguration('params_file')], 
-            namespace=LaunchConfiguration('namespace'),
+            namespace=namespace,
+            arguments=[
+                '--x', '0', 
+                '--y', '0', 
+                '--z', '0', 
+                '--qx', '1', 
+                '--qy', '0', 
+                '--qz', '0', 
+                '--qw', '0',
+                '--frame-id', 'base_link',
+                '--child-frame-id', 'dvl_link'],
             output='screen',
         ),
         launch_ros.actions.Node(
-            package='dvl_a50',
-            executable='dvl_static_tf_pub.py',
+            package='tf2_ros',
+            executable='static_transform_publisher',
             name='body_zup_to_zdown',
+            namespace=namespace,
             parameters=[LaunchConfiguration('params_file')], 
-            namespace=LaunchConfiguration('namespace'),
+            arguments=[
+                '--x', '0', 
+                '--y', '0', 
+                '--z', '0', 
+                '--qx', '1', 
+                '--qy', '0', 
+                '--qz', '0', 
+                '--qw', '0',
+                '--frame-id', 'dvl_odom',
+                '--child-frame-id', 'dvl_odom_ned'],
             output='screen',
         ),
         OpaqueFunction(function=launch_setup)

@@ -58,8 +58,8 @@ private:
     int fault = 1; 
     string delimiter = ",";
     std::string ip_address;
-    std::string velocity_frame_id;
-    std::string position_frame_id;
+    std::string dvl_frame_id;
+    std::string odom_frame_id;
     TCPSocket *tcpSocket;
     json json_data;
 

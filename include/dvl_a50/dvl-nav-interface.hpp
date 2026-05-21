@@ -31,7 +31,6 @@ private:
     geometry_msgs::msg::Quaternion quaternion_from_euler(double roll, double pitch, double yaw, bool degrees);
 
     std::string odom_frame_id_;
-    std::string ned_odom_frame_id_;
     std::string child_frame_id_;
     double orientation_var_;
     bool publish_tf_;

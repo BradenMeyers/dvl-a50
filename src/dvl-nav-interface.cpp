@@ -19,13 +19,11 @@ DVLNavInterface::DVLNavInterface()
             qos_profile);
     
     this->declare_parameter<std::string>("odom_frame_id", "dvl_odom");
-    this->declare_parameter<std::string>("ned_odom_frame_id", "dvl_odom_ned");
     this->declare_parameter<std::string>("child_frame_id", "base_link");
     this->declare_parameter<double>("orientation_variance", 0.15);
     this->declare_parameter<bool>("publish_tf", true);
 
     this->get_parameter("odom_frame_id", odom_frame_id_);
-    this->get_parameter("ned_odom_frame_id", ned_odom_frame_id_);
     this->get_parameter("child_frame_id", child_frame_id_);
     this->get_parameter("orientation_variance", orientation_var_);
     this->get_parameter("publish_tf", publish_tf_);
@@ -60,10 +58,10 @@ void DVLNavInterface::position_callback(const dvl_msgs::msg::DVLDR::SharedPtr ms
 
     geometry_msgs::msg::TransformStamped T_dvl_to_base, T_zup_zdown;
     try {
-        T_dvl_to_base = tf_buffer_.lookupTransform(child_frame_id_, msg->header.frame_id, msg->header.stamp);
-        T_zup_zdown = tf_buffer_.lookupTransform(ned_odom_frame_id_, odom_frame_id_, msg->header.stamp);
+        T_dvl_to_base = tf_buffer_.lookupTransform(child_frame_id_, msg->child_frame_id, msg->header.stamp);
+        T_zup_zdown = tf_buffer_.lookupTransform(msg->header.frame_id, odom_frame_id_, msg->header.stamp);
     } catch (tf2::TransformException &ex) {
-        RCLCPP_WARN(this->get_logger(), "TF lookup failed: %s", ex.what());
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1.0, "TF lookup failed: %s", ex.what());
         return;
     }
 
@@ -99,7 +97,7 @@ void DVLNavInterface::position_callback(const dvl_msgs::msg::DVLDR::SharedPtr ms
     odom.pose.covariance[14] = var;
     odom.pose.covariance[21] = orientation_var_;
     odom.pose.covariance[28] = orientation_var_;
-    odom.pose.covariance[35] = orientation_var_;
+    odom.pose.covariance[35] = orientation_var_; // TODO this is bad because yaw variance would be significantly different.
 
     odom_pub_->publish(odom);
     if (publish_tf_)
