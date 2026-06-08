@@ -33,10 +33,12 @@ Node("dvl_a50_node")
     this->declare_parameter<std::string>("dvl_ip_address", "192.168.194.95");
     this->declare_parameter<std::string>("dvl_frame_id", "dvl_link");
     this->declare_parameter<std::string>("odom_frame_id", "dvl_odom_ned");
+    this->declare_parameter<bool>("startup_disable_acoustics", false);
     
     dvl_frame_id = this->get_parameter("dvl_frame_id").as_string();
     odom_frame_id = this->get_parameter("odom_frame_id").as_string();
     ip_address = this->get_parameter("dvl_ip_address").as_string();
+    bool disable_acoustics = this->get_parameter("startup_disable_acoustics").as_bool();
     RCLCPP_INFO(get_logger(), "IP_ADDRESS: '%s'", ip_address.c_str());
 
     //--- TCP/IP SOCKET ---- 
@@ -86,7 +88,11 @@ Node("dvl_a50_node")
     /*
      * Disable transducer operation to limit sensor heating out of water.
      */
-    this->set_json_parameter("acoustic_enabled", "false");
+    if(disable_acoustics)
+    {
+        this->set_json_parameter("acoustic_enabled", "false");
+        RCLCPP_INFO(get_logger(), "Acoustic operation disabled on startup.");
+    }
     usleep(2000);
 
 }
