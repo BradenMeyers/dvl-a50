@@ -3,6 +3,7 @@
     dvl_ip_address: 192.168.194.95
     dvl_frame_id: dvl_link
     odom_frame_id: dvl_odom_ned
+    startup_ntp_address: ""   # Set NTP server on startup (e.g. "192.168.2.103" or "auto"), empty = skip
 
 /dvl_nav_interface:
   ros__parameters:

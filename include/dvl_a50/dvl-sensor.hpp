@@ -23,6 +23,7 @@
 #include "dvl_msgs/msg/config_command.hpp"
 #include "dvl_msgs/msg/command_response.hpp"
 #include "dvl_msgs/msg/config_status.hpp"
+#include "dvl_msgs/msg/time_status.hpp"
 
 #include "dvl_a50/json/single_include/nlohmann/json.hpp"
 #include <iomanip>
@@ -39,7 +40,8 @@ enum DVL_Parameters {
     speed_of_sound,
     acoustic_enabled,
     dark_mode_enabled,
-    mountig_rotation_offset,
+    periodic_cycling_enabled,
+    mounting_rotation_offset,
     range_mode,
     invalid_param
 };

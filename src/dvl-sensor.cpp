@@ -34,6 +34,7 @@ Node("dvl_a50_node")
     this->declare_parameter<std::string>("dvl_frame_id", "dvl_link");
     this->declare_parameter<std::string>("odom_frame_id", "dvl_odom_ned");
     this->declare_parameter<bool>("startup_disable_acoustics", false);
+    this->declare_parameter<std::string>("startup_ntp_address", "");
     
     dvl_frame_id = this->get_parameter("dvl_frame_id").as_string();
     odom_frame_id = this->get_parameter("odom_frame_id").as_string();
@@ -93,6 +94,17 @@ Node("dvl_a50_node")
         this->set_json_parameter("acoustic_enabled", "false");
         RCLCPP_INFO(get_logger(), "Acoustic operation disabled on startup.");
     }
+
+    std::string startup_ntp_address = this->get_parameter("startup_ntp_address").as_string();
+    if (!startup_ntp_address.empty()) {
+        json ntp_command = {
+            {"command", "set_time_ntp"},
+            {"parameters", {{"ntp_address", startup_ntp_address}}}
+        };
+        this->send_parameter_to_sensor(ntp_command);
+        RCLCPP_INFO(get_logger(), "Setting NTP address to: '%s'", startup_ntp_address.c_str());
+    }
+
     usleep(2000);
 
 }
@@ -105,44 +117,55 @@ DVL_A50::~DVL_A50() {
 
 void DVL_A50::handle_receive()
 {
-    char *tempBuffer = new char[1];
+    if(fault != 0)
+        return;
 
-    //tcpSocket->Receive(&tempBuffer[0]);
-    std::string str; 
-    
-    if(fault == 0)
+    char byte = 0;
+    std::string str;
+    int n;
+
+    while((n = tcpSocket->Receive(&byte)) > 0)
     {
-        while(tempBuffer[0] != '\n')
-        {
-            if(tcpSocket->Receive(tempBuffer) !=0)
-                str = str + tempBuffer[0];
-        }
-		
-        try
-        {
-            json_data = json::parse(str);
+        str += byte;
+        if (byte == '\n')
+            break;
+    }
 
-            if (json_data.contains("altitude")) {
-                this->publish_vel_trans_report();
-            }
-            else if (json_data.contains("pitch")) {
-                this->publish_dead_reckoning_report();
-            }
-            else if (json_data.contains("response_to"))
-            {
-                if(json_data["response_to"] == "set_config"
-                || json_data["response_to"] == "calibrate_gyro"
-                || json_data["response_to"] == "reset_dead_reckoning")
-                    this->publish_command_response();
-                else if(json_data["response_to"] == "get_config")
-                    this->publish_config_status();
-            }
-        }
-        catch(std::exception& e)
-        {
-            std::cout << "Exception: " << e.what() << std::endl;
-        }
+    // Skip parse if we got nothing or a partial message (e.g. socket timeout mid-stream)
+    if (str.empty() || str.back() != '\n')
+        return;
 
+    try
+    {
+        json_data = json::parse(str);
+
+        if (json_data.contains("altitude")) {
+            this->publish_vel_trans_report();
+        }
+        else if (json_data.contains("pitch")) {
+            this->publish_dead_reckoning_report();
+        }
+        else if (json_data.contains("response_to"))
+        {
+            const std::string resp = json_data["response_to"];
+            if (resp == "set_config"
+            || resp == "calibrate_gyro"
+            || resp == "reset_dead_reckoning"
+            || resp == "set_time_ntp"
+            || resp == "set_time_manual"
+            || resp == "trigger_ping")
+                this->publish_command_response();
+            else if (resp == "get_config")
+                this->publish_config_status();
+            else if (resp == "get_time_ntp"
+                  || resp == "get_time_status"
+                  || resp == "force_sync_ntp")
+                this->publish_command_response();
+        }
+    }
+    catch(std::exception& e)
+    {
+        std::cout << "Exception: " << e.what() << std::endl;
     }
 }
 
@@ -264,6 +287,30 @@ void DVL_A50::publish_command_response()
     command_resp.result = 0;
     command_resp.format = json_data["format"];
     command_resp.type = json_data["type"];
+
+    const std::string resp = command_resp.response_to;
+    if (json_data.contains("result") && json_data["result"].is_object()) {
+        const auto& result = json_data["result"];
+        auto& ts = command_resp.time_status;
+
+        if (resp == "get_time_ntp") {
+            ts.ntp_address = result["ntp_address"];
+        } else if (resp == "get_time_status") {
+            ts.system_time = result["system_time"];
+            ts.ntp_synced = result["ntp_synced"];
+            ts.ntp_synced_to = result["ntp_synced_to"];
+            ts.ntp_seconds_since_last_sync = result["ntp_seconds_since_last_sync"].is_null()
+                ? -1.0 : result["ntp_seconds_since_last_sync"].get<double>();
+        } else if (resp == "force_sync_ntp" && result.contains("status") && result["status"].is_object()) {
+            const auto& status = result["status"];
+            ts.system_time = status["system_time"];
+            ts.ntp_synced = status["ntp_synced"];
+            ts.ntp_synced_to = status["ntp_synced_to"];
+            ts.ntp_seconds_since_last_sync = status["ntp_seconds_since_last_sync"].is_null()
+                ? -1.0 : status["ntp_seconds_since_last_sync"].get<double>();
+        }
+    }
+
     dvl_pub_command_response->publish(command_resp);
 }
 
@@ -279,6 +326,7 @@ void DVL_A50::publish_config_status()
     status_msg.speed_of_sound = json_data["result"]["speed_of_sound"];
     status_msg.acoustic_enabled = json_data["result"]["acoustic_enabled"];
     status_msg.dark_mode_enabled = json_data["result"]["dark_mode_enabled"];
+    status_msg.periodic_cycling_enabled = json_data["result"]["periodic_cycling_enabled"];
     status_msg.mounting_rotation_offset = json_data["result"]["mounting_rotation_offset"];
     status_msg.range_mode = json_data["result"]["range_mode"];
     status_msg.format = json_data["format"];
@@ -312,6 +360,53 @@ void DVL_A50::command_subscriber(const dvl_msgs::msg::ConfigCommand::SharedPtr m
         };
         this->send_parameter_to_sensor(command);
     }
+    else if(msg->command == "set_time_ntp")
+    {
+        json command = {
+            {"command", "set_time_ntp"},
+            {"parameters", {{"ntp_address", msg->parameter_value}}}
+        };
+        this->send_parameter_to_sensor(command);
+    }
+    else if(msg->command == "get_time_ntp")
+    {
+        json command = {{"command", "get_time_ntp"}};
+        this->send_parameter_to_sensor(command);
+    }
+    else if(msg->command == "set_time_manual")
+    {
+        json command = {
+            {"command", "set_time_manual"},
+            {"parameters", {{"now", msg->parameter_value}}}
+        };
+        this->send_parameter_to_sensor(command);
+    }
+    else if(msg->command == "get_time_status")
+    {
+        json command = {{"command", "get_time_status"}};
+        this->send_parameter_to_sensor(command);
+    }
+    else if(msg->command == "trigger_ping")
+    {
+        json command = {{"command", "trigger_ping"}};
+        this->send_parameter_to_sensor(command);
+    }
+    else if(msg->command == "force_sync_ntp")
+    {
+        try
+        {
+            int timeout = std::stoi(msg->parameter_value);
+            json command = {
+                {"command", "force_sync_ntp"},
+                {"parameters", {{"timeout_seconds", timeout}}}
+            };
+            this->send_parameter_to_sensor(command);
+        }
+        catch(const std::exception& e)
+        {
+            RCLCPP_ERROR(get_logger(), "force_sync_ntp requires integer timeout_seconds: %s", e.what());
+        }
+    }
 
 }
 
@@ -323,8 +418,10 @@ DVL_Parameters DVL_A50::resolveParameter(std::string param)
 	    return acoustic_enabled;
 	else if(param == "dark_mode_enabled")
 	    return dark_mode_enabled;
-	else if(param == "mountig_rotation_offset")
-	    return mountig_rotation_offset;
+	else if(param == "periodic_cycling_enabled")
+	    return periodic_cycling_enabled;
+	else if(param == "mounting_rotation_offset")
+	    return mounting_rotation_offset;
 	else if(param == "range_mode")
 	    return range_mode;
 
@@ -381,10 +478,24 @@ void DVL_A50::set_json_parameter(const std::string name, const std::string value
             }
             break;
 
-        case mountig_rotation_offset:
+        case periodic_cycling_enabled:
             try
             {
-                message["parameters"]["mountig_rotation_offset"] = (double)std::stod(value);
+                bool data;
+                std::istringstream(value) >> std::boolalpha >> data;
+                message["parameters"]["periodic_cycling_enabled"] = data;
+                this->send_parameter_to_sensor(message);
+            }
+            catch(const std::exception& e)
+            {
+                RCLCPP_ERROR(get_logger(), "Invalid data type! error: %s", e.what());
+            }
+            break;
+
+        case mounting_rotation_offset:
+            try
+            {
+                message["parameters"]["mounting_rotation_offset"] = (double)std::stod(value);
                 this->send_parameter_to_sensor(message);
             }
             catch(const std::exception& e)
@@ -420,6 +531,7 @@ void DVL_A50::send_parameter_to_sensor(const json &message)
     std::string str = message.dump();
     char* c = &*str.begin();
     tcpSocket->Send(c);
+    usleep(100000); // 100ms between commands to avoid flooding the sensor
 }
 
 }//end namespace
